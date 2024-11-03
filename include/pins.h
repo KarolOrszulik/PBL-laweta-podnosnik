@@ -2,15 +2,15 @@
 
 #pragma region Motors
 
-    #define MOTOR_1A    12
-    #define MOTOR_1B    13
-    #define ENCODER_1A  15
-    #define ENCODER_1B  4
+    #define MOTOR_1A    15
+    #define MOTOR_1B    16
+    #define ENCODER_1A  32
+    #define ENCODER_1B  33
 
-    #define MOTOR_2A    16
-    #define MOTOR_2B    17
-    #define ENCODER_2A  5
-    #define ENCODER_2B  23
+    #define MOTOR_2A    17
+    #define MOTOR_2B    18
+    #define ENCODER_2A  34
+    #define ENCODER_2B  35
 
     // #define MOTOR_3A
     // #define MOTOR_3B
