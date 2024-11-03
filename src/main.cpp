@@ -2,14 +2,14 @@
 #include "pins.h"
 
 #include "Motor.h"
-// #include "HX711.h"
+#include "HX711.h"
 // #include "DFRobot_BMI160.h"
 
 Motor motor1(MOTOR_1A, MOTOR_1B, ENCODER_1A, ENCODER_1B);
 Motor motor2(MOTOR_2A, MOTOR_2B, ENCODER_2A, ENCODER_2B);
 
-// static HX711 hx711_1;
-// static HX711 hx711_2;
+static HX711 hx711_1;
+static HX711 hx711_2;
 
 // static DFRobot_BMI160 bmi160;
 // constexpr uint8_t BMI160_ADDR = 0x68;
@@ -29,10 +29,9 @@ void setup()
     attachInterrupt(digitalPinToInterrupt(ENCODER_2A), []{ motor2.isr(); }, RISING);
 
 
-
     // set up HX711
-    // hx711_1.begin(HX711_1DT, HX711_1SCK);
-    // hx711_2.begin(HX711_2DT, HX711_2SCK);
+    hx711_1.begin(HX711_1DT, HX711_1SCK);
+    hx711_2.begin(HX711_2DT, HX711_2SCK);
 
     // set up IMU
     // if (bmi160.I2cInit(BMI160_ADDR) == BMI160_OK)
@@ -65,25 +64,16 @@ void motorEncoderDemo()
 
 }
 
-// void hx711Demo()
-// {
-//     constexpr uint32_t DEMO_TIME = 5000;
-//     uint32_t timeStart = millis();
-
-//     Serial.println("Running HX711 demo");
-//     while (millis() - timeStart < DEMO_TIME)
-//     {
-//         if (hx711_1.is_ready())
-//         {
-//             Serial.println("Reading HX711 1: " + String(hx711_1.read()));
-//         }
-//         if (hx711_2.is_ready())
-//         {
-//             Serial.println("Reading HX711 2: " + String(hx711_2.read()));
-//         }
-//         delay(500);
-//     }
-// }
+void hx711Demo()
+{
+    if (hx711_1.is_ready() && hx711_2.is_ready())
+    {
+        long reading1 = hx711_1.read();
+        long reading2 = hx711_2.read();
+        Serial.println("HX711 1: " + String(reading1) + "\tHX711 2: " + String(reading2));
+    }
+    delay(100);
+}
 
 // void bmi160Demo()
 // {
@@ -115,8 +105,8 @@ void motorEncoderDemo()
 void loop()
 {
     Serial.println("Running demo");
-    motorEncoderDemo();
-    // hx711Demo();
+    // motorEncoderDemo();
+    hx711Demo();
     // bmi160Demo();
 
     delay(2000);
