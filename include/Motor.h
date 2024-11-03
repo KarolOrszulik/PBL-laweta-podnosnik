@@ -8,17 +8,18 @@ public:
     // setup
     Motor(uint8_t pinA, uint8_t pinB, uint8_t pinEncoderA, uint8_t pinEncoderB);
     void setPulsesPerMillimeter(int32_t pulsesPerMillimeter) {_pulsesPerMillimeter = pulsesPerMillimeter;}
-    void setTolerance(int32_t tolerance) {_tolerance = tolerance;}
+    void setPositionTolerance(float tolerance) {_pulsesTolerance = positionToPulses(tolerance);}
 
     // movement
-    void setTargetPosition(int32_t targetPosition);
-    void move(int32_t distance) { setTargetPosition(_position + distance); }
+    void setTargetPosition(float targetPosition);
+    void move(float distance);
     void update();
     void stop();
 
     // encoder
-    int32_t getPosition() { return _position; }
-    void resetPosition() { _position = 0; }
+    bool isInRange() { return _state == State::IN_RANGE; }
+    float getPosition() { return pulsesToPosition(_pulses); }
+    void resetPosition()  { _pulses = 0; }
 
     // interrupts
     void IRAM_ATTR isr();
@@ -31,16 +32,20 @@ private:
         IN_RANGE
     };
 
+    int32_t positionToPulses(float position) { return position * _pulsesPerMillimeter; }
+    float pulsesToPosition(int32_t pulses) { return (float)pulses / _pulsesPerMillimeter; }
+    int32_t getPulsesError() { return _targetPulses - _pulses; }
+
     uint8_t _pinA;
     uint8_t _pinB;
     uint8_t _pinEncoderA;
     uint8_t _pinEncoderB;
 
-    int32_t _position = 0;
-    int32_t _targetPosition = 0;
+    volatile int32_t _pulses = 0;
+    int32_t _targetPulses = 0;
     
     int32_t _pulsesPerMillimeter = 1;
 
     State _state = State::IN_RANGE;
-    int32_t _tolerance = 100;
+    int32_t _pulsesTolerance = 10;
 };

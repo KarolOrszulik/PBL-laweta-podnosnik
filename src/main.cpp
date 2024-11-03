@@ -1,12 +1,12 @@
 #include <Arduino.h>
+#include "pins.h"
 
+#include "Motor.h"
 // #include "HX711.h"
 // #include "DFRobot_BMI160.h"
 
-#include "pins.h"
-
-static volatile int32_t encoder1Pos = 0;
-static volatile int32_t encoder2Pos = 0;
+Motor motor1(MOTOR_1A, MOTOR_1B, ENCODER_1A, ENCODER_1B);
+Motor motor2(MOTOR_2A, MOTOR_2B, ENCODER_2A, ENCODER_2B);
 
 // static HX711 hx711_1;
 // static HX711 hx711_2;
@@ -14,29 +14,6 @@ static volatile int32_t encoder2Pos = 0;
 // static DFRobot_BMI160 bmi160;
 // constexpr uint8_t BMI160_ADDR = 0x68;
 
-void IRAM_ATTR encoder1_isr()
-{
-    if (digitalRead(ENCODER_1B))
-    {
-        encoder1Pos++;
-    }
-    else
-    {
-        encoder1Pos--;
-    }
-}
-
-void IRAM_ATTR encoder2_isr()
-{
-    if (digitalRead(ENCODER_2B))
-    {
-        encoder2Pos++;
-    }
-    else
-    {
-        encoder2Pos--;
-    }
-}
 
 void setup()
 {
@@ -44,19 +21,14 @@ void setup()
     Serial.begin(115200);
     delay(500);
 
-    // set up motor/encoder pins
-    pinMode(MOTOR_1A, OUTPUT);
-    pinMode(MOTOR_1B, OUTPUT);
-    pinMode(ENCODER_1A, INPUT);
-    pinMode(ENCODER_1B, INPUT);
+    motor1.setPulsesPerMillimeter(695);
+    motor2.setPulsesPerMillimeter(695);
+    motor1.setPositionTolerance(0.05);
+    motor2.setPositionTolerance(0.05);
+    attachInterrupt(digitalPinToInterrupt(ENCODER_1A), []{ motor1.isr(); }, RISING);
+    attachInterrupt(digitalPinToInterrupt(ENCODER_2A), []{ motor2.isr(); }, RISING);
 
-    pinMode(MOTOR_2A, OUTPUT);
-    pinMode(MOTOR_2B, OUTPUT);
-    pinMode(ENCODER_2A, INPUT);
-    pinMode(ENCODER_2B, INPUT);
 
-    attachInterrupt(digitalPinToInterrupt(ENCODER_1A), encoder1_isr, RISING);
-    attachInterrupt(digitalPinToInterrupt(ENCODER_2A), encoder2_isr, RISING);
 
     // set up HX711
     // hx711_1.begin(HX711_1DT, HX711_1SCK);
@@ -79,39 +51,18 @@ void setup()
 void motorEncoderDemo()
 {
     Serial.println("Running motor/encoder demo");
-    Serial.println("Encoder 1 before: " + String(encoder1Pos));
-    Serial.println("Encoder 2 before: " + String(encoder2Pos));
+    
+    motor1.move(2);
+    motor2.move(-3);
+    while (!motor1.isInRange() || !motor2.isInRange())
+    {
+        motor1.update();
+        motor2.update();
+    }
 
-    // turn motor 1 forward
-    digitalWrite(MOTOR_1A, LOW);
-    digitalWrite(MOTOR_1B, HIGH);
+    Serial.println("Motors in range");
     delay(1000);
 
-    // turn motor 1 backward
-    // digitalWrite(MOTOR_1A, HIGH);
-    // digitalWrite(MOTOR_1B, LOW);
-    // delay(500);
-
-    // stop motor 1
-    digitalWrite(MOTOR_1A, LOW);
-    digitalWrite(MOTOR_1B, LOW);
-
-    // turn motor 2 forward
-    digitalWrite(MOTOR_2A, LOW);
-    digitalWrite(MOTOR_2B, HIGH);
-    delay(1000);
-
-    // turn motor 2 backward
-    // digitalWrite(MOTOR_2A, HIGH);
-    // digitalWrite(MOTOR_2B, LOW);
-    // delay(500);
-
-    // stop motor 2
-    digitalWrite(MOTOR_2A, LOW);
-    digitalWrite(MOTOR_2B, LOW);
-
-    Serial.println("Encoder 1 after: " + String(encoder1Pos));
-    Serial.println("Encoder 2 after: " + String(encoder2Pos));
 }
 
 // void hx711Demo()
@@ -168,5 +119,5 @@ void loop()
     // hx711Demo();
     // bmi160Demo();
 
-    delay(1000);
+    delay(2000);
 }
