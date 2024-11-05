@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "pins.h"
+#include "constants.h"
 
 #include "Motor.h"
 #include "HX711.h"
@@ -21,10 +22,10 @@ void setup()
     Serial.begin(115200);
     delay(1000);
 
-    motor1.setPulsesPerMillimeter(695);
-    motor2.setPulsesPerMillimeter(695);
-    motor1.setPositionTolerance(0.05);
-    motor2.setPositionTolerance(0.05);
+    motor1.setPulsesPerMillimeter(MOTOR_CPR * THREAD_PITCH);
+    motor2.setPulsesPerMillimeter(MOTOR_CPR * THREAD_PITCH);
+    motor1.setPositionTolerance(0);
+    motor2.setPositionTolerance(0);
     attachInterrupt(digitalPinToInterrupt(ENCODER_1A), []{ motor1.isr(); }, RISING);
     attachInterrupt(digitalPinToInterrupt(ENCODER_2A), []{ motor2.isr(); }, RISING);
 
@@ -93,14 +94,52 @@ void bmi160Demo()
     delay(100);
 }
 
+void calculateMotorTransmission()
+{
+    constexpr int TACHOMETER_PIN = 4;
+
+    pinMode(TACHOMETER_PIN, INPUT);
+
+    bool lastState = digitalRead(TACHOMETER_PIN);
+    int tachPulses = 0;
+
+    digitalWrite(MOTOR_1A, HIGH);
+    digitalWrite(MOTOR_1B, LOW);
+
+    while (true)
+    {
+        // increment tachPulses on rising edge
+        const bool state = digitalRead(TACHOMETER_PIN);
+        if (state && !lastState)
+        {
+            tachPulses++;
+
+            const float ratio = motor1.getPulses() / (float)tachPulses;
+            Serial.print("Pulses: " + String(motor1.getPulses()));
+            Serial.print("\tTach pulses: " + String(tachPulses));
+            Serial.println("\tRatio: " + String(ratio));
+
+            delay(400);
+        }
+        lastState = state;
+    }
+}
+
 void loop()
 {
+    // calculateMotorTransmission();
+
     static enum
     {
         NONE,
         MOTOR_ENCODER,
+        MOTOR_ENCODER_2,
+        ENCODER,
         HX711,
-        BMI160
+        BMI160,
+
+        UP,
+        DOWN
     } state = NONE;
 
 
@@ -112,11 +151,23 @@ void loop()
             case 'm':
                 state = MOTOR_ENCODER;
                 break;
+            case 'M':
+                state = MOTOR_ENCODER_2;
+                break;
             case 'h':
                 state = HX711;
                 break;
             case 'b':
                 state = BMI160;
+                break;
+            case 'e':
+                state = ENCODER;
+                break;
+            case 'u':
+                state = UP;
+                break;
+            case 'd':
+                state = DOWN;
                 break;
             default:
                 state = NONE;
@@ -129,11 +180,50 @@ void loop()
         case MOTOR_ENCODER:
             motorEncoderDemo();
             break;
+        case MOTOR_ENCODER_2:
+            Serial.println("Pulses before: " + String(motor2.getPulses()));
+            motor2.move(1);
+            while (!motor2.isInRange())
+            {
+                motor2.update();
+            }
+            delay(100);
+            {
+                int32_t target = motor2.getTargetPulses();
+                int32_t pulses = motor2.getPulses();
+                Serial.println("Target: " + String(target));
+                Serial.println("Pulses after: " + String(pulses));
+                Serial.println("Error: " + String(pulses - target));
+            }
+            delay(1000);
+            break;
+
         case HX711:
             hx711Demo();
             break;
         case BMI160:
             bmi160Demo();
+            break;
+        case ENCODER:
+            Serial.println("Motor 1: " + String(motor1.getPulses()));
+            break;
+        case UP:
+            Serial.println("Moving up");
+            motor1.move(1);
+            while(!motor1.isInRange())
+            {
+                motor1.update();
+            }
+            state = NONE;
+            break;
+        case DOWN:
+            Serial.println("Moving down");
+            motor1.move(-1);
+            while(!motor1.isInRange())
+            {
+                motor1.update();
+            }
+            state = NONE;
             break;
         default:
             break;

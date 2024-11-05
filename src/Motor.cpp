@@ -44,35 +44,12 @@ void Motor::update()
 {
     const int32_t pulsesError = getPulsesError();
 
-    if (pulsesError < _pulsesTolerance)
+    if ( _state == State::TOO_LOW && pulsesError > -_pulsesTolerance ||
+         _state == State::TOO_HIGH && pulsesError < _pulsesTolerance)
     {
         _state = State::IN_RANGE;
         stop();
     }
-    
-    // stop at zero-crossing
-
-    // switch (_state)
-    // {
-    // case State::TOO_LOW:
-    //     if (pulsesError > 0)
-    //     {
-    //         _state = State::IN_RANGE;
-    //         stop();
-    //     }
-    //     break;
-    // case State::TOO_HIGH:
-    //     if (pulsesError < 0)
-    //     {
-    //         _state = State::IN_RANGE;
-    //         stop();
-    //     }
-    //     break;
-    // case State::IN_RANGE:
-    //     stop();
-    //     break;
-    // }
-
 }
 
 void Motor::stop()

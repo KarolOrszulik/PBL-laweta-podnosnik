@@ -27,11 +27,11 @@
 
 #pragma region HX711
 
-    #define HX711_1SCK  13
-    #define HX711_1DT   14
+    #define HX711_1SCK  19
+    #define HX711_1DT   23
 
-    #define HX711_2SCK  19
-    #define HX711_2DT   23
+    #define HX711_2SCK  13
+    #define HX711_2DT   14
 
 #pragma endregion
 

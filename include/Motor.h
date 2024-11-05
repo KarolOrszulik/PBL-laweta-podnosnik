@@ -19,7 +19,10 @@ public:
     // encoder
     bool isInRange() { return _state == State::IN_RANGE; }
     float getPosition() { return pulsesToPosition(_pulses); }
+    int32_t getPulses() { return _pulses; }
     void resetPosition()  { _pulses = 0; }
+
+    int32_t getTargetPulses() { return _targetPulses; }
 
     // interrupts
     void IRAM_ATTR isr();
