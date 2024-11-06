@@ -4,6 +4,7 @@
 
 #include "Motor.h"
 #include "HX711.h"
+#include "Scale.h"
 #include "DFRobot_BMI160.h"
 
 Motor motor1(MOTOR_1A, MOTOR_1B, ENCODER_1A, ENCODER_1B);
@@ -125,68 +126,84 @@ void calculateMotorTransmission()
     }
 }
 
+void scaleDemo()
+{
+    Scale scale(HX711_2DT, HX711_2SCK);
+
+    scale.calibrate(54.0f);
+
+    while(true)
+    {
+        Serial.println("Weight: " + String(scale.getWeight()));
+        delay(250);
+    }
+
+}
+
+void hxDataGathering()
+{
+    while (true)
+    {
+        Serial.println(hx711_2.read_average(20));
+
+        while (!Serial.available())
+            ;
+        while (Serial.available())
+            Serial.read();
+    }
+}
+
 void loop()
 {
     // calculateMotorTransmission();
 
-    static enum
+    static enum : char
     {
-        NONE,
-        MOTOR_ENCODER,
-        MOTOR_ENCODER_2,
-        ENCODER,
-        HX711,
-        BMI160,
+        NONE = 'n',
 
-        UP,
-        DOWN
+        MOTOR_ENCODER = 'm',
+        MOTOR_ENCODER_2 = 'M',
+        CALULATE_TRANSMISSION = 'c',
+
+        ENCODER = 'e',
+
+        HX711 = 'h',
+        HX711_DATA_GATHERING = 'H',
+        SCALE = 's',
+
+        BMI160 = 'b',
+
+        UP = 'u',
+        DOWN = 'd'
     } state = NONE;
 
 
     if (Serial.available())
     {
         char c = Serial.read();
-        switch (c)
+        try
         {
-            case 'm':
-                state = MOTOR_ENCODER;
-                break;
-            case 'M':
-                state = MOTOR_ENCODER_2;
-                break;
-            case 'h':
-                state = HX711;
-                break;
-            case 'b':
-                state = BMI160;
-                break;
-            case 'e':
-                state = ENCODER;
-                break;
-            case 'u':
-                state = UP;
-                break;
-            case 'd':
-                state = DOWN;
-                break;
-            default:
-                state = NONE;
-                break;
+            state = static_cast<decltype(state)>(c);
+        } catch (...)
+        {
+            state = NONE;
         }
     }
 
     switch (state)
     {
+        case NONE:
+            break;
+    
         case MOTOR_ENCODER:
             motorEncoderDemo();
             break;
+
         case MOTOR_ENCODER_2:
             Serial.println("Pulses before: " + String(motor2.getPulses()));
             motor2.move(1);
             while (!motor2.isInRange())
-            {
                 motor2.update();
-            }
             delay(100);
             {
                 int32_t target = motor2.getTargetPulses();
@@ -201,31 +218,41 @@ void loop()
         case HX711:
             hx711Demo();
             break;
+
         case BMI160:
             bmi160Demo();
             break;
+
         case ENCODER:
-            Serial.println("Motor 1: " + String(motor1.getPulses()));
+            Serial.println("Encoder 1: " + String(motor1.getPulses()));
             break;
+
         case UP:
             Serial.println("Moving up");
             motor1.move(1);
             while(!motor1.isInRange())
-            {
                 motor1.update();
-            }
             state = NONE;
             break;
+
         case DOWN:
             Serial.println("Moving down");
             motor1.move(-1);
             while(!motor1.isInRange())
-            {
                 motor1.update();
-            }
             state = NONE;
             break;
-        default:
+
+        case SCALE:
+            scaleDemo();
+            break;
+
+        case HX711_DATA_GATHERING:
+            hxDataGathering();
+            break;
+
+        case CALULATE_TRANSMISSION:
+            calculateMotorTransmission();
             break;
     }
 }
