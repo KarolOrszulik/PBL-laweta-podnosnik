@@ -4,8 +4,8 @@
 
     #define MOTOR_1A    15
     #define MOTOR_1B    16
-    #define ENCODER_1A  32
-    #define ENCODER_1B  33
+    #define ENCODER_1A  33
+    #define ENCODER_1B  32
 
     #define MOTOR_2A    17
     #define MOTOR_2B    18

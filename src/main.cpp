@@ -23,12 +23,31 @@ void setup()
     Serial.begin(115200);
     delay(1000);
 
-    motor1.setPulsesPerMillimeter(MOTOR_CPR * THREAD_PITCH);
-    motor2.setPulsesPerMillimeter(MOTOR_CPR * THREAD_PITCH);
+    motor1.setPulsesPerMillimeter(MOTOR_CPR / THREAD_PITCH);
+    motor2.setPulsesPerMillimeter(MOTOR_CPR / THREAD_PITCH);
     motor1.setPositionTolerance(0);
     motor2.setPositionTolerance(0);
     attachInterrupt(digitalPinToInterrupt(ENCODER_1A), []{ motor1.isr(); }, RISING);
     attachInterrupt(digitalPinToInterrupt(ENCODER_2A), []{ motor2.isr(); }, RISING);
+
+    xTaskCreatePinnedToCore(
+        [] (void*) {
+            hw_timer_t* timer = timerBegin(0, 80, true);
+            timerAttachInterrupt(timer, [] { 
+                motor1.update();
+                motor2.update();
+            }, true);
+            timerAlarmWrite(timer, 10000, true);
+            timerAlarmEnable(timer);
+            while(true) { delay(1000); }
+        },
+        "Motor updates",    // task name
+        10000,              // stack size
+        NULL,               // task argument
+        1,                  // task priority
+        NULL,               // task handle
+        1                   // core to run task on
+    );
 
 
     // set up HX711
@@ -53,8 +72,8 @@ void motorEncoderDemo()
 {
     Serial.println("Running motor/encoder demo");
     
-    motor1.move(2);
-    motor2.move(3);
+    motor1.changeTargetPosition(2);
+    motor2.changeTargetPosition(3);
     while (!motor1.isInRange() || !motor2.isInRange())
     {
         motor1.update();
@@ -155,7 +174,6 @@ void hxDataGathering()
 
 void loop()
 {
-    // calculateMotorTransmission();
 
     static enum : char
     {
@@ -164,6 +182,8 @@ void loop()
         MOTOR_ENCODER = 'm',
         MOTOR_ENCODER_2 = 'M',
         CALULATE_TRANSMISSION = 'c',
+        HOME_MOTOR = ',',
+        SEQUENCE = '.',
 
         ENCODER = 'e',
 
@@ -201,7 +221,7 @@ void loop()
 
         case MOTOR_ENCODER_2:
             Serial.println("Pulses before: " + String(motor2.getPulses()));
-            motor2.move(1);
+            motor2.changeTargetPosition(1);
             while (!motor2.isInRange())
                 motor2.update();
             delay(100);
@@ -228,19 +248,29 @@ void loop()
             break;
 
         case UP:
-            Serial.println("Moving up");
-            motor1.move(1);
+            Serial.print("Moving up...");
+            motor1.changeTargetPosition(1.f);
             while(!motor1.isInRange())
-                motor1.update();
+            {
+                //motor1.update();
+                Serial.print(".");
+                delay(250);
+            }
             state = NONE;
+            Serial.println("Done.");
             break;
 
         case DOWN:
-            Serial.println("Moving down");
-            motor1.move(-1);
+            Serial.print("Moving down...");
+            motor1.changeTargetPosition(-1.f);
             while(!motor1.isInRange())
-                motor1.update();
+            {
+                //motor1.update();
+                Serial.print(".");
+                delay(250);
+            }
             state = NONE;
+            Serial.println("Done.");
             break;
 
         case SCALE:
@@ -254,5 +284,32 @@ void loop()
         case CALULATE_TRANSMISSION:
             calculateMotorTransmission();
             break;
+        
+        case HOME_MOTOR:
+            motor1.home();
+            state = NONE;
+            break;
+        
+        case SEQUENCE:
+            motor1.home();
+
+            Serial.println("Motor 1 position: " + String(motor1.getPosition()) + "mm");
+            Serial.println("Setting motor 1 target position to 10mm");
+            motor1.setTargetPosition(10);
+
+            while (!motor1.isInRange())
+                motor1.update();
+
+            delay(1000);
+
+            Serial.println("Moving motor 1 by 10mm");
+            motor1.changeTargetPosition(10);
+
+            while (!motor1.isInRange())
+                motor1.update();
+            
+            Serial.println("Motor 1 position: " + String(motor1.getPosition()) + "mm");
+
+            state = NONE;
     }
 }

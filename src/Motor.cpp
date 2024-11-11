@@ -1,32 +1,94 @@
 #include "Motor.h"
 
 
-Motor::Motor(uint8_t pinA, uint8_t pinB, uint8_t pinEncoderA, uint8_t pinEncoderB)
-    : _pinA(pinA), _pinB(pinB), _pinEncoderA(pinEncoderA), _pinEncoderB(pinEncoderB)
+Motor::Motor(uint8_t pinMotorA, uint8_t pinMotorB, uint8_t pinEncoderA, uint8_t pinEncoderB)
+    : _pinMotorA(pinMotorA), _pinMotorB(pinMotorB), _pinEncoderA(pinEncoderA), _pinEncoderB(pinEncoderB)
 {
-    pinMode(_pinA, OUTPUT);
-    pinMode(_pinB, OUTPUT);
+    pinMode(_pinMotorA, OUTPUT);
+    pinMode(_pinMotorB, OUTPUT);
     pinMode(_pinEncoderA, INPUT);
     pinMode(_pinEncoderB, INPUT);
 }
 
+void Motor::detectDirection()
+{
+    Serial.println("Begin direction autodetection.");
+
+    const int32_t startPulses = _pulses;
+
+    moveForward();
+    delay(100);
+
+    stop();
+    delay(500);
+    
+    const int32_t forwardPulses = _pulses - startPulses;
+
+    if (forwardPulses < 0)
+    {
+        std::swap(_pinMotorA, _pinMotorB);
+        Serial.println("Motor pins appear to be reversed, swapping motor pins.");
+    }
+    else
+    {
+        Serial.println("Motor pins appear to be in the correct order.");
+    }
+
+    Serial.println("End direction autodetection.");
+}
+
+void Motor::home()
+{
+    constexpr int msPerUpdate = 50;
+
+    Serial.println("Begin homing sequence.");
+
+    _shouldUpdate = false;
+
+    detectDirection();
+
+    moveBackward();
+    int32_t previousPulses;
+    do
+    {
+        previousPulses = _pulses;
+        delay(msPerUpdate);
+    } while (previousPulses != _pulses);
+
+    stop();
+
+    resetPosition();
+    _isHomed = true;
+
+    _shouldUpdate = true;
+
+    setTargetPosition(MIN_POSITION);
+
+    Serial.println("End homing sequence.");
+}
+
 void Motor::setTargetPosition(float targetPosition)
 {
-    _targetPulses = positionToPulses(targetPosition);
+    if (!isHomed())
+    {
+        Serial.println("Motor is not homed. Home motor before moving. Aborting...");
+        return;
+    }
 
+    targetPosition = std::max(targetPosition, MIN_POSITION);
+
+    _targetPulses = positionToPulses(targetPosition);
     const int32_t pulsesError = getPulsesError();
 
     if (pulsesError > _pulsesTolerance)
     {
         _state = State::TOO_HIGH;
-        digitalWrite(_pinA, HIGH);
-        digitalWrite(_pinB, LOW);
+        moveBackward();
     }
     else if (pulsesError < -_pulsesTolerance)
     {
         _state = State::TOO_LOW;
-        digitalWrite(_pinA, LOW);
-        digitalWrite(_pinB, HIGH);
+        moveForward();
     }
     else
     {
@@ -35,37 +97,57 @@ void Motor::setTargetPosition(float targetPosition)
     }
 }
 
-void Motor::move(float distance)
+void Motor::changeTargetPosition(float distance)
 {
     setTargetPosition(pulsesToPosition(_targetPulses) + distance);
 }
 
 void Motor::update()
 {
+    if (!_shouldUpdate) return;
+
     const int32_t pulsesError = getPulsesError();
 
     if ( _state == State::TOO_LOW && pulsesError > -_pulsesTolerance ||
          _state == State::TOO_HIGH && pulsesError < _pulsesTolerance)
     {
         _state = State::IN_RANGE;
+    }
+
+    if (_state == State::IN_RANGE)
+    {
         stop();
     }
 }
 
 void Motor::stop()
 {
-    digitalWrite(_pinA, HIGH);
-    digitalWrite(_pinB, HIGH);
+    digitalWrite(_pinMotorA, HIGH);
+    digitalWrite(_pinMotorB, HIGH);
+}
+
+void Motor::moveForward()
+{
+    digitalWrite(_pinMotorA, HIGH);
+    digitalWrite(_pinMotorB, LOW);
+}
+
+void Motor::moveBackward()
+{
+    digitalWrite(_pinMotorA, LOW);
+    digitalWrite(_pinMotorB, HIGH);
+}
+
+void Motor::resetPosition()
+{
+    _pulses = 0;
+    _targetPulses = _pulses;
 }
 
 void IRAM_ATTR Motor::isr()
 {
     if (digitalRead(_pinEncoderB))
-    {
         _pulses++;
-    }
     else
-    {
         _pulses--;
-    }
 }
