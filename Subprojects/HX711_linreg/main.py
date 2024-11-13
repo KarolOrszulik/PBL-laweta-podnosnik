@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 
 
-
 def read_data(filename):
     data = []
     with open(filename) as f:
@@ -38,13 +37,23 @@ def write_output(filename, a, b, R2):
         f.write(f'R2 = {R2}\n')
 
 
+def plot_output(data, a, b):
+    plt.scatter([x[0] for x in data], [x[1] for x in data])
+    plt.plot([x[0] for x in data], [a * x[0] + b for x in data], color='red')
+    plt.show()
+
+
 def do_stuff(filename):
     data = read_data(filename)
     a, b, R2 = linreg(data)
+    print(f'a = {a}, b = {b}, R2 = {R2}')
     write_output(filename.replace('.csv', '_output.txt'), a, b, R2)
+    plot_output(data, a, b)
+
 
 def main():
-    filenames = ['data_hx711_1.csv', 'data_hx711_2.csv', 'data_hx711_3.csv', 'data_hx711_4.csv']
+    # filenames = ['data_hx711_1.csv', 'data_hx711_2.csv', 'data_hx711_3.csv', 'data_hx711_4.csv']
+    filenames = ['data_hx744_4.csv']
 
     for filename in filenames:
         do_stuff(filename)
