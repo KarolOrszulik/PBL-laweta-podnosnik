@@ -1,0 +1,10 @@
+Pin 0 took 842us to toggle
+Pin 1 took 842us to toggle
+Pin 2 took 842us to toggle
+Pin 3 took 842us to toggle
+Pin 4 took 842us to toggle
+Pin 5 took 842us to toggle
+Pin 6 took 842us to toggle
+Pin 7 took 842us to toggle
+
+Przełączenie dowolnego, jednego pinu zajmuje 842us według funkcji Arduino micros() na ESP32.

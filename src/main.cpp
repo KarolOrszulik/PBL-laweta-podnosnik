@@ -6,13 +6,13 @@
 // #include "pins.h"
 // #include "constants.h"
 
-// #include "Motor.h"
+// #include "Servo.h"
 // #include "HX711.h"
 // #include "Scale.h"
 // #include "DFRobot_BMI160.h"
 
-// static Motor motor1(MOTOR_1A, MOTOR_1B, ENCODER_1A, ENCODER_1B);
-// static Motor motor2(MOTOR_2A, MOTOR_2B, ENCODER_2A, ENCODER_2B);
+// static Servo motor1(MOTOR_1A, MOTOR_1B, ENCODER_1A, ENCODER_1B);
+// static Servo motor2(MOTOR_2A, MOTOR_2B, ENCODER_2A, ENCODER_2B);
 
 // static HX711 hx711_1;
 // static HX711 hx711_2;
@@ -97,7 +97,7 @@
 //             timerAlarmEnable(timer);
 //             while(true) { delay(1000); }
 //         },
-//         "Motor updates",    // task name
+//         "Servo updates",    // task name
 //         10000,              // stack size
 //         NULL,               // task argument
 //         1,                  // task priority
@@ -353,7 +353,7 @@
 //         case SEQUENCE:
 //             motor1.home();
 
-//             Serial.println("Motor 1 position: " + String(motor1.getPosition()) + "mm");
+//             Serial.println("Servo 1 position: " + String(motor1.getPosition()) + "mm");
 //             Serial.println("Setting motor 1 target position to 10mm");
 //             motor1.setTargetPosition(10);
 
@@ -368,7 +368,7 @@
 //             while (!motor1.isInRange())
 //                 motor1.update();
             
-//             Serial.println("Motor 1 position: " + String(motor1.getPosition()) + "mm");
+//             Serial.println("Servo 1 position: " + String(motor1.getPosition()) + "mm");
 
 //             state = NONE;
 //     }
@@ -414,7 +414,12 @@ void loop()
     {
         mcp.digitalWrite(pin, HIGH);
         delay(500);
+
+        uint32_t start = micros();
         mcp.digitalWrite(pin, LOW);
+        uint32_t end = micros();
+
+        Serial.println("Pin " + String(pin) + " took " + String(end - start) + "us to toggle");
         delay(1000);
     }
 }

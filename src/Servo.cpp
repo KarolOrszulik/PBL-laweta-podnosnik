@@ -1,7 +1,7 @@
-#include "Motor.h"
+#include "Servo.h"
 
 
-Motor::Motor(uint8_t pinMotorA, uint8_t pinMotorB, uint8_t pinEncoderA, uint8_t pinEncoderB)
+Servo::Servo(uint8_t pinMotorA, uint8_t pinMotorB, uint8_t pinEncoderA, uint8_t pinEncoderB)
     : _pinMotorA(pinMotorA), _pinMotorB(pinMotorB), _pinEncoderA(pinEncoderA), _pinEncoderB(pinEncoderB)
 {
     pinMode(_pinMotorA, OUTPUT);
@@ -10,7 +10,7 @@ Motor::Motor(uint8_t pinMotorA, uint8_t pinMotorB, uint8_t pinEncoderA, uint8_t 
     pinMode(_pinEncoderB, INPUT);
 }
 
-void Motor::detectDirection()
+void Servo::detectDirection()
 {
     Serial.println("Begin direction autodetection.");
 
@@ -37,7 +37,7 @@ void Motor::detectDirection()
     Serial.println("End direction autodetection.");
 }
 
-void Motor::home()
+void Servo::home()
 {
     constexpr int msPerUpdate = 50;
 
@@ -67,7 +67,7 @@ void Motor::home()
     Serial.println("End homing sequence.");
 }
 
-void Motor::setTargetPosition(float targetPosition)
+void Servo::setTargetPosition(float targetPosition)
 {
     if (!isHomed())
     {
@@ -97,12 +97,12 @@ void Motor::setTargetPosition(float targetPosition)
     }
 }
 
-void Motor::changeTargetPosition(float distance)
+void Servo::changeTargetPosition(float distance)
 {
     setTargetPosition(pulsesToPosition(_targetPulses) + distance);
 }
 
-void Motor::update()
+void Servo::update()
 {
     if (!_shouldUpdate) return;
 
@@ -120,31 +120,31 @@ void Motor::update()
     }
 }
 
-void Motor::stop()
+void Servo::stop()
 {
     digitalWrite(_pinMotorA, HIGH);
     digitalWrite(_pinMotorB, HIGH);
 }
 
-void Motor::moveForward()
+void Servo::moveForward()
 {
     digitalWrite(_pinMotorA, HIGH);
     digitalWrite(_pinMotorB, LOW);
 }
 
-void Motor::moveBackward()
+void Servo::moveBackward()
 {
     digitalWrite(_pinMotorA, LOW);
     digitalWrite(_pinMotorB, HIGH);
 }
 
-void Motor::resetPosition()
+void Servo::resetPosition()
 {
     _pulses = 0;
     _targetPulses = _pulses;
 }
 
-void IRAM_ATTR Motor::isr()
+void IRAM_ATTR Servo::isr()
 {
     if (digitalRead(_pinEncoderB))
         _pulses++;
