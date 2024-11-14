@@ -375,51 +375,58 @@
 // }
 
 #include <Arduino.h>
+#include "pins.h"
 
 #include "DFRobot_BMI160.h"
 
 #include "Adafruit_MCP23X17.h"
 
+#include "Motor/L9110S_Motor.h"
+#include "Encoder/Encoder.h"
+#include "Pin/GPIO_Pin.h"
+#include "Pin/MCP23017_Pin.h"
+
 Adafruit_MCP23X17 mcp;
+
+
+static IMotor* motor1 = new L9110S_Motor(new MCP23017_Pin(&mcp, 0), new MCP23017_Pin(&mcp, 1));
+static IEncoder* encoder1 = new Encoder(new GPIO_Pin(ENCODER_1A), new GPIO_Pin(ENCODER_1B));
 
 void setup()
 {
     Serial.begin(115200);
     delay(1000);
 
-    if (!mcp.begin_I2C(0x20))
-    {
-        Serial.println("MCP23017 not found");
-        while (1);
-    }
+    mcp.begin_I2C(0x20);
+    attachInterrupt(digitalPinToInterrupt(encoder1->getTriggerPin()), [] { encoder1->isr(); }, RISING);
 
-    // set all port A pins as outputs
-    for (byte pin = 0; pin < 8; pin++)
-    {
-        mcp.pinMode(pin, OUTPUT);
-        mcp.digitalWrite(pin, LOW);
-    }
-
-    // set all port B pins as outputs
-    for (byte pin = 8; pin < 16; pin++)
-    {
-        mcp.pinMode(pin, OUTPUT);
-        mcp.digitalWrite(pin, LOW);
-    }
+    xTaskCreatePinnedToCore(
+        [](void*) {
+            while (true)
+            {
+                Serial.print("Encoder: ");
+                Serial.println(encoder1->getPulses());
+                delay(250);
+            }
+        },
+        "Encoder report",
+        10000,
+        NULL,
+        1,
+        NULL,
+        1
+    );
 }
 
 void loop()
 {
-    for (byte pin = 0; pin < 8; pin++)
-    {
-        mcp.digitalWrite(pin, HIGH);
-        delay(500);
+    motor1->moveForward();
+    delay(1000);
+    motor1->stop();
+    delay(1000);
 
-        uint32_t start = micros();
-        mcp.digitalWrite(pin, LOW);
-        uint32_t end = micros();
-
-        Serial.println("Pin " + String(pin) + " took " + String(end - start) + "us to toggle");
-        delay(1000);
-    }
+    motor1->moveBackward();
+    delay(1000);
+    motor1->stop();
+    delay(1000);
 }
