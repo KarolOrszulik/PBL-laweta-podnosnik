@@ -385,12 +385,13 @@
 #include "Encoder/Encoder.h"
 #include "Pin/GPIO_Pin.h"
 #include "Pin/MCP23017_Pin.h"
+#include "Scale/HX711_Scale.h"
 
 Adafruit_MCP23X17 mcp;
 
-
 static IMotor* motor1 = new L9110S_Motor(new MCP23017_Pin(&mcp, 0), new MCP23017_Pin(&mcp, 1));
 static IEncoder* encoder1 = new Encoder(new GPIO_Pin(ENCODER_1A), new GPIO_Pin(ENCODER_1B));
+static IScale* scale1 = new HX711_Scale(new GPIO_Pin(HX711_1DT), new GPIO_Pin(HX711_1SCK));
 
 void setup()
 {
