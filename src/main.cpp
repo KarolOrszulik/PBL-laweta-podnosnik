@@ -376,6 +376,7 @@
 
 #include <Arduino.h>
 #include "pins.h"
+#include "HX711_calibration_values.h"
 
 #include "DFRobot_BMI160.h"
 
@@ -387,7 +388,8 @@
 #include "Pin/MCP23017_Pin.h"
 #include "Scale/HX711_Scale.h"
 
-Adafruit_MCP23X17 mcp;
+
+static Adafruit_MCP23X17 mcp;
 
 static IMotor* motor1 = new L9110S_Motor(new MCP23017_Pin(&mcp, 0), new MCP23017_Pin(&mcp, 1));
 static IEncoder* encoder1 = new Encoder(new GPIO_Pin(ENCODER_1A), new GPIO_Pin(ENCODER_1B));
@@ -401,16 +403,20 @@ void setup()
     mcp.begin_I2C(0x20);
     attachInterrupt(digitalPinToInterrupt(encoder1->getTriggerPin()), [] { encoder1->isr(); }, RISING);
 
+    scale1->setScale(HX4_SCALE);
+    scale1->tare();
+
     xTaskCreatePinnedToCore(
         [](void*) {
             while (true)
             {
-                Serial.print("Encoder: ");
-                Serial.println(encoder1->getPulses());
+                Serial.println("Encoder: " + String(encoder1->getPulses()));
+                Serial.println("Scale: " + String(scale1->getWeight(1)) + "g");
+                Serial.println();
                 delay(250);
             }
         },
-        "Encoder report",
+        "Encoder/scale report",
         10000,
         NULL,
         1,
