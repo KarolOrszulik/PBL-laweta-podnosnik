@@ -14,72 +14,60 @@
 #include "Controller/SimpleController.h"
 #include "Servo/Servo.h"
 
+#define NUM_AXIS 4
 
 static Adafruit_MCP23X17 mcp;
 static DFRobot_BMI160 bmi160;
 
-static IScale* scales[4] = {};
-static IMotor* motors[4] = {};
-static IEncoder* encoders[4] = {};
-
-static IServo* servo = nullptr;
+static IScale* scales[NUM_AXIS] = {};
+static IMotor* motors[NUM_AXIS] = {};
+static IEncoder* encoders[NUM_AXIS] = {};
+static IServo* servos[NUM_AXIS] = {};
 
 void setup()
 {
     Serial.begin(115200);
     delay(1000);
 
-    mcp.begin_I2C(0x20) ? Serial.println("MCP23017 found") : Serial.println("MCP23017 not found");
-    bmi160.I2cInit(0x69) == BMI160_OK ? Serial.println("BMI160 found") : Serial.println("BMI160 not found");
+    Wire.begin(21, 22);
+    Wire1.begin(12, 13);
 
-    motors[0] = new L9110S_Motor(new MCP23017_Pin(&mcp, MOTOR_0A), new MCP23017_Pin(&mcp, MOTOR_0B));
-    motors[1] = new L9110S_Motor(new MCP23017_Pin(&mcp, MOTOR_1A), new MCP23017_Pin(&mcp, MOTOR_1B));
-    motors[2] = new L9110S_Motor(new MCP23017_Pin(&mcp, MOTOR_2A), new MCP23017_Pin(&mcp, MOTOR_2B));
-    motors[3] = new L9110S_Motor(new MCP23017_Pin(&mcp, MOTOR_3A), new MCP23017_Pin(&mcp, MOTOR_3B));
+    bmi160.softReset() == BMI160_OK ? Serial.println("BMI160 reset success") : Serial.println("BMI160 reset failed");
+    bmi160.I2cInit(0x69) == BMI160_OK ? Serial.println("BMI160 init success") : Serial.println("BMI160 init failed");
+    mcp.begin_I2C(0x20, &Wire1) ? Serial.println("MCP23017 found") : Serial.println("MCP23017 not found");
 
-    // for (auto motor : motors)
-    //     motor->stop();
-
-    encoders[0] = new Encoder(new GPIO_Pin(ENCODER_0A), new GPIO_Pin(ENCODER_0B));
-    encoders[1] = new Encoder(new GPIO_Pin(ENCODER_1A), new GPIO_Pin(ENCODER_1B));
-    encoders[2] = new Encoder(new GPIO_Pin(ENCODER_2A), new GPIO_Pin(ENCODER_2B));
-    encoders[3] = new Encoder(new GPIO_Pin(ENCODER_3A), new GPIO_Pin(ENCODER_3B));
-
-    attachInterrupt(digitalPinToInterrupt(encoders[0]->getTriggerPin()), [] { encoders[0]->isr(); }, RISING);
-    attachInterrupt(digitalPinToInterrupt(encoders[1]->getTriggerPin()), [] { encoders[1]->isr(); }, RISING);
-    attachInterrupt(digitalPinToInterrupt(encoders[2]->getTriggerPin()), [] { encoders[2]->isr(); }, RISING);
-    attachInterrupt(digitalPinToInterrupt(encoders[3]->getTriggerPin()), [] { encoders[3]->isr(); }, RISING);
-
-
-    scales[0] = new HX711_Scale(new GPIO_Pin(HX711_0DT), new GPIO_Pin(HX711_0SCK));
-    scales[1] = new HX711_Scale(new GPIO_Pin(HX711_1DT), new GPIO_Pin(HX711_1SCK));
-    scales[2] = new HX711_Scale(new GPIO_Pin(HX711_2DT), new GPIO_Pin(HX711_2SCK));
-    scales[3] = new HX711_Scale(new GPIO_Pin(HX711_3DT), new GPIO_Pin(HX711_3SCK));
-
-    scales[0]->setScale(HX0_SCALE);
-    scales[1]->setScale(HX1_SCALE);
-    scales[2]->setScale(HX2_SCALE);
-    scales[3]->setScale(HX3_SCALE);
-
-    Serial.print("Taring scales");
-    for (auto scale : scales)
+    for (int i = 0; i < NUM_AXIS; i++)
     {
-        Serial.print(".");
-        scale->tare(2);
+        motors[i] = new L9110S_Motor(new MCP23017_Pin(&mcp, MOTOR_PINS[i].pinA), new MCP23017_Pin(&mcp, MOTOR_PINS[i].pinB));
+        encoders[i] = new Encoder(new GPIO_Pin(ENCODER_PINS[i].pinTrig), new GPIO_Pin(ENCODER_PINS[i].pinDir));
+
+        scales[i] = new HX711_Scale(new GPIO_Pin(HX711_PINS[i].pinDT), new GPIO_Pin(HX711_PINS[i].pinSCK));
+        scales[i]->tare(2);
+        scales[i]->setScale(HX711_CALIBRATION_VALUES[i].scale);
+
+        servos[i] = new Servo(motors[i], encoders[i], new SimpleController(0.1f));
+        servos[i]->setPulsesPerMM(MOTOR_CPR / THREAD_PITCH);
+        servos[i]->setPositionLimits(0.f, 50.f);
+        servos[i]->enableUpdates();
     }
-    Serial.println();
 
-
-    servo = new Servo(motors[0], encoders[3], new SimpleController(0.1f));
-    servo->setPulsesPerMM(MOTOR_CPR / THREAD_PITCH);
-    servo->setPositionLimits(0.f, 50.f);
-    servo->enableUpdates();
+    attachInterrupt(digitalPinToInterrupt(encoders[0]->getTriggerPin()), []
+                    { encoders[0]->isr(); }, RISING);
+    attachInterrupt(digitalPinToInterrupt(encoders[1]->getTriggerPin()), []
+                    { encoders[1]->isr(); }, RISING);
+    attachInterrupt(digitalPinToInterrupt(encoders[2]->getTriggerPin()), []
+                    { encoders[2]->isr(); }, RISING);
+    attachInterrupt(digitalPinToInterrupt(encoders[3]->getTriggerPin()), []
+                    { encoders[3]->isr(); }, RISING);
 
     xTaskCreatePinnedToCore(
-        [] (void*) {
+        [] (void*)
+        {
             while (true)
             {
-                servo->update();
+                for (auto servo : servos)
+                    servo->update();
+                delay(10);
             }
         },
         "Servo updates",
@@ -87,26 +75,10 @@ void setup()
         NULL,
         1,
         NULL,
-        1
-    );
+        1);
+
 
     Serial.println("Setup complete");
-}
-
-void demoAllMotors()
-{
-    for (auto motor : motors)
-    {
-        motor->moveForward();
-        delay(500);
-        motor->stop();
-        delay(1000);
-
-        motor->moveBackward();
-        delay(500);
-        motor->stop();
-        delay(1000);
-    }
 }
 
 void demoAllEncoders()
@@ -133,10 +105,24 @@ void demoAllScales()
 
 void demoBMI160()
 {
-    int16_t accelGyro[6];
-    bmi160.getAccelGyroData(accelGyro);
-    Serial.println("Accel: " + String(accelGyro[0]) + "\t" + String(accelGyro[1]) + "\t" + String(accelGyro[2])
-                + "\t\tGyro " + String(accelGyro[3]) + "\t" + String(accelGyro[4]) + "\t" + String(accelGyro[5]));
+    int16_t gyroAccel[6];
+    const int result = bmi160.getAccelGyroData(gyroAccel);
+    if (result == 0)
+    {
+        Serial.println(
+              "Gyro [rad/s]: "
+            + String(gyroAccel[0] * 3.14159f / 180.f) + "\t"
+            + String(gyroAccel[1] * 3.14159f / 180.f) + "\t"
+            + String(gyroAccel[2] * 3.14159f / 180.f) + "\t\t"
+            + "Accel [g]: "
+            + String(gyroAccel[3] / 16384.f) + "\t"
+            + String(gyroAccel[4] / 16384.f) + "\t"
+            + String(gyroAccel[5] / 16384.f));
+    }
+    else
+    {
+        Serial.println("BMI160 data read failed");
+    }
     delay(100);
 }
 
@@ -144,27 +130,25 @@ void demoServo()
 {
     static float distance = 1.f;
 
-    servo->moveTargetPosition(distance);
+    servos[0]->moveTargetPosition(distance);
 
     constexpr float POSITION_TOLERANCE = 0.1;
-    while (abs(servo->getPositionError()) > POSITION_TOLERANCE); // wait
+    while (abs(servos[0]->getPositionError()) > POSITION_TOLERANCE)
+        ; // wait
 
     distance *= -1.f;
 }
 
 void demoHome()
 {
-    servo->home(true);
-
-    servo->setTargetPosition(1.f);
+    servos[0]->home(true);
+    servos[0]->setTargetPosition(1.f);
 }
 
 void loop()
 {
-    static enum : char
-    {
+    static enum : char {
         NONE = 'n',
-        MOTORS = 'm',
         ENCODERS = 'e',
         SCALES = 's',
         BMI160 = 'b',
@@ -179,7 +163,8 @@ void loop()
         try
         {
             state = (decltype(state))Serial.read();
-        } catch (...)
+        }
+        catch (...)
         {
             state = NONE;
         }
@@ -187,35 +172,32 @@ void loop()
 
     switch (state)
     {
-        case NONE:
-            break;
-        case MOTORS:
-            demoAllMotors();
-            break;
-        case ENCODERS:
-            demoAllEncoders();
-            break;
-        case SCALES:
-            demoAllScales();
-            break;
-        case BMI160:
-            demoBMI160();
-            break;
-        case SERVO:
-            demoServo();
-            state = NONE;
-            break;
-        case HOME:
-            demoHome();
-            state = NONE;
-            break;
-        case UP:
-            servo->moveTargetPosition(1.f);
-            state = NONE;
-            break;
-        case DOWN:
-            servo->moveTargetPosition(-1.f);
-            state = NONE;
-            break;
+    case NONE:
+        break;
+    case ENCODERS:
+        demoAllEncoders();
+        break;
+    case SCALES:
+        demoAllScales();
+        break;
+    case BMI160:
+        demoBMI160();
+        break;
+    case SERVO:
+        demoServo();
+        state = NONE;
+        break;
+    case HOME:
+        demoHome();
+        state = NONE;
+        break;
+    case UP:
+        servos[0]->moveTargetPosition(1.f);
+        state = NONE;
+        break;
+    case DOWN:
+        servos[0]->moveTargetPosition(-1.f);
+        state = NONE;
+        break;
     }
 }
