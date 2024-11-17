@@ -1,7 +1,7 @@
-#include "Servo.h"
+#include "ServoOld.h"
 
 
-Servo::Servo(uint8_t pinMotorA, uint8_t pinMotorB, uint8_t pinEncoderA, uint8_t pinEncoderB)
+ServoOld::ServoOld(uint8_t pinMotorA, uint8_t pinMotorB, uint8_t pinEncoderA, uint8_t pinEncoderB)
     : _pinMotorA(pinMotorA), _pinMotorB(pinMotorB), _pinEncoderA(pinEncoderA), _pinEncoderB(pinEncoderB)
 {
     pinMode(_pinMotorA, OUTPUT);
@@ -10,7 +10,7 @@ Servo::Servo(uint8_t pinMotorA, uint8_t pinMotorB, uint8_t pinEncoderA, uint8_t 
     pinMode(_pinEncoderB, INPUT);
 }
 
-void Servo::detectDirection()
+void ServoOld::detectDirection()
 {
     Serial.println("Begin direction autodetection.");
 
@@ -37,7 +37,7 @@ void Servo::detectDirection()
     Serial.println("End direction autodetection.");
 }
 
-void Servo::home()
+void ServoOld::home()
 {
     constexpr int msPerUpdate = 50;
 
@@ -67,7 +67,7 @@ void Servo::home()
     Serial.println("End homing sequence.");
 }
 
-void Servo::setTargetPosition(float targetPosition)
+void ServoOld::setTargetPosition(float targetPosition)
 {
     if (!isHomed())
     {
@@ -97,12 +97,12 @@ void Servo::setTargetPosition(float targetPosition)
     }
 }
 
-void Servo::changeTargetPosition(float distance)
+void ServoOld::changeTargetPosition(float distance)
 {
     setTargetPosition(pulsesToPosition(_targetPulses) + distance);
 }
 
-void Servo::update()
+void ServoOld::update()
 {
     if (!_shouldUpdate) return;
 
@@ -120,31 +120,31 @@ void Servo::update()
     }
 }
 
-void Servo::stop()
+void ServoOld::stop()
 {
     digitalWrite(_pinMotorA, HIGH);
     digitalWrite(_pinMotorB, HIGH);
 }
 
-void Servo::moveForward()
+void ServoOld::moveForward()
 {
     digitalWrite(_pinMotorA, HIGH);
     digitalWrite(_pinMotorB, LOW);
 }
 
-void Servo::moveBackward()
+void ServoOld::moveBackward()
 {
     digitalWrite(_pinMotorA, LOW);
     digitalWrite(_pinMotorB, HIGH);
 }
 
-void Servo::resetPosition()
+void ServoOld::resetPosition()
 {
     _pulses = 0;
     _targetPulses = _pulses;
 }
 
-void IRAM_ATTR Servo::isr()
+void IRAM_ATTR ServoOld::isr()
 {
     if (digitalRead(_pinEncoderB))
         _pulses++;

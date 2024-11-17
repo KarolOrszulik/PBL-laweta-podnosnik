@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "pins.h"
+#include "constants.h"
 #include "HX711_calibration_values.h"
 
 #include "DFRobot_BMI160.h"
@@ -10,6 +11,8 @@
 #include "Pin/GPIO_Pin.h"
 #include "Pin/MCP23017_Pin.h"
 #include "Scale/HX711_Scale.h"
+#include "Controller/SimpleController.h"
+#include "Servo/Servo.h"
 
 
 static Adafruit_MCP23X17 mcp;
@@ -18,6 +21,8 @@ static DFRobot_BMI160 bmi160;
 static IScale* scales[4] = {};
 static IMotor* motors[4] = {};
 static IEncoder* encoders[4] = {};
+
+static IServo* servo = nullptr;
 
 void setup()
 {
@@ -32,8 +37,8 @@ void setup()
     motors[2] = new L9110S_Motor(new MCP23017_Pin(&mcp, MOTOR_2A), new MCP23017_Pin(&mcp, MOTOR_2B));
     motors[3] = new L9110S_Motor(new MCP23017_Pin(&mcp, MOTOR_3A), new MCP23017_Pin(&mcp, MOTOR_3B));
 
-    for (auto motor : motors)
-        motor->stop();
+    // for (auto motor : motors)
+    //     motor->stop();
 
     encoders[0] = new Encoder(new GPIO_Pin(ENCODER_0A), new GPIO_Pin(ENCODER_0B));
     encoders[1] = new Encoder(new GPIO_Pin(ENCODER_1A), new GPIO_Pin(ENCODER_1B));
@@ -63,6 +68,27 @@ void setup()
         scale->tare(2);
     }
     Serial.println();
+
+
+    servo = new Servo(motors[0], encoders[3], new SimpleController(0.1f));
+    servo->setPulsesPerMM(MOTOR_CPR / THREAD_PITCH);
+    servo->setPositionLimits(0.f, 50.f);
+    servo->enableUpdates();
+
+    xTaskCreatePinnedToCore(
+        [] (void*) {
+            while (true)
+            {
+                servo->update();
+            }
+        },
+        "Servo updates",
+        10000,
+        NULL,
+        1,
+        NULL,
+        1
+    );
 
     Serial.println("Setup complete");
 }
@@ -114,6 +140,25 @@ void demoBMI160()
     delay(100);
 }
 
+void demoServo()
+{
+    static float distance = 1.f;
+
+    servo->moveTargetPosition(distance);
+
+    constexpr float POSITION_TOLERANCE = 0.1;
+    while (abs(servo->getPositionError()) > POSITION_TOLERANCE); // wait
+
+    distance *= -1.f;
+}
+
+void demoHome()
+{
+    servo->home(true);
+
+    servo->setTargetPosition(1.f);
+}
+
 void loop()
 {
     static enum : char
@@ -122,32 +167,21 @@ void loop()
         MOTORS = 'm',
         ENCODERS = 'e',
         SCALES = 's',
-        BMI160 = 'b'
+        BMI160 = 'b',
+        SERVO = 'v',
+        HOME = 'h',
+        UP = 'u',
+        DOWN = 'd'
     } state;
 
     if (Serial.available())
     {
-        switch (Serial.read())
+        try
         {
-            case 'm':
-                Serial.println("Demoing motors");
-                state = MOTORS;
-                break;
-            case 'e':
-                Serial.println("Demoing encoders");
-                state = ENCODERS;
-                break;
-            case 's':
-                Serial.println("Demoing scales");
-                state = SCALES;
-                break;
-            case 'b':
-                Serial.println("Demoing BMI160");
-                state = BMI160;
-                break;
-            default:
-                Serial.println("Demo idle");
-                state = NONE;
+            state = (decltype(state))Serial.read();
+        } catch (...)
+        {
+            state = NONE;
         }
     }
 
@@ -166,6 +200,22 @@ void loop()
             break;
         case BMI160:
             demoBMI160();
+            break;
+        case SERVO:
+            demoServo();
+            state = NONE;
+            break;
+        case HOME:
+            demoHome();
+            state = NONE;
+            break;
+        case UP:
+            servo->moveTargetPosition(1.f);
+            state = NONE;
+            break;
+        case DOWN:
+            servo->moveTargetPosition(-1.f);
+            state = NONE;
             break;
     }
 }

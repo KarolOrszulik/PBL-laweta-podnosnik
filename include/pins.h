@@ -58,3 +58,50 @@
         #define IMU_SCL 22
 
 #pragma endregion
+
+
+#pragma region LordForgiveMeForWhatImAboutToDo
+
+constexpr struct
+{
+    int pinA;
+    int pinB;
+} MOTOR_PINS[] = {
+    {0, 1},
+    {2, 3},
+    {4, 5},
+    {6, 7}
+};
+
+constexpr struct
+{
+    int pinTrig;
+    int pinDir;
+} ENCODER_PINS[] = {
+    {14, 27},
+    {25, 26},
+    {32, 33},
+    {34, 35}
+};
+
+constexpr struct
+{
+    int pinSCK;
+    int pinDT;
+} HX711_PINS[] = {
+    {23, 16},
+    {23, 17},
+    {23, 18},
+    {23, 19}
+};
+
+constexpr struct 
+{
+    int sda;
+    int scl;
+} IMU_PINS = {
+    21, 22
+};
+
+#pragma endregion
+

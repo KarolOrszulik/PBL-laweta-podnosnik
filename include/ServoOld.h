@@ -2,11 +2,11 @@
 
 #include <Arduino.h>
 
-class Servo
+class ServoOld
 {
 public:
     // setup
-    Servo(uint8_t pinMotorA, uint8_t pinMotorB, uint8_t pinEncoderA, uint8_t pinEncoderB);
+    ServoOld(uint8_t pinMotorA, uint8_t pinMotorB, uint8_t pinEncoderA, uint8_t pinEncoderB);
     void setPulsesPerMillimeter(int32_t pulsesPerMillimeter) {_pulsesPerMillimeter = pulsesPerMillimeter;}
     void setPositionTolerance(float tolerance) {_pulsesTolerance = positionToPulses(tolerance);}
 

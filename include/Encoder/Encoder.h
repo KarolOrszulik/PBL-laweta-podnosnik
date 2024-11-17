@@ -41,5 +41,5 @@ private:
     IPin* _pinTrig = nullptr;
     IPin* _pinDir  = nullptr;
 
-    int32_t _pulses = 0;
+    volatile int32_t _pulses = 0;
 };

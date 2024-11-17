@@ -17,6 +17,18 @@ public:
         this->stop();
     }
 
+    void setSpeed(int speed) override
+    {
+        speed = constrain(speed, -255, 255);
+        
+        if (speed > 0)
+            this->moveForward(speed);
+        else if (speed < 0)
+            this->moveBackward(-speed);
+        else
+            this->stop();
+    }
+
     void moveForward(uint8_t speed) override
     {
         _pinFwd->setState(HIGH);
