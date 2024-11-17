@@ -13,6 +13,7 @@
 #include "Scale/HX711_Scale.h"
 #include "Controller/SimpleController.h"
 #include "Servo/Servo.h"
+#include "StopSignal/StopSignal.h"
 
 #define NUM_AXIS 4
 
@@ -77,6 +78,8 @@ void setup()
         NULL,
         1);
 
+
+    StopSignal::instance()->clearStop();
 
     Serial.println("Setup complete");
 }
@@ -155,7 +158,8 @@ void loop()
         SERVO = 'v',
         HOME = 'h',
         UP = 'u',
-        DOWN = 'd'
+        DOWN = 'd',
+        STOP = 'S',
     } state;
 
     if (Serial.available())
@@ -197,6 +201,12 @@ void loop()
         break;
     case DOWN:
         servos[0]->moveTargetPosition(-1.f);
+        state = NONE;
+        break;
+    case STOP:
+        StopSignal::instance()->stop();
+        delay(1000);
+        StopSignal::instance()->clearStop();
         state = NONE;
         break;
     }

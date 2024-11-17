@@ -1,3 +1,5 @@
+#pragma once
+
 constexpr struct
 {
     int pinA;
@@ -39,3 +41,4 @@ constexpr struct
     21, 22
 };
 
+constexpr int STOP_SIGNAL_PIN = 15;
