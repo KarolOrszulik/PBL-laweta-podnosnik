@@ -18,6 +18,7 @@
 #include "Controller/SimpleController.h"
 #include "Servo/Servo.h"
 #include "StopSignal/StopSignal.h"
+#include "MQTTClient/MQTTClient.h"
 
 #include <unordered_map>
 
@@ -34,7 +35,7 @@ static IServo* servos[NUM_AXIS] = {};
 #define MQTT_SERVER "192.168.100.6" // thinkpad
 
 WiFiClient wifiClient;
-PubSubClient mqttClient(wifiClient);
+IMQTTClient* mqttClient = nullptr;
 
 enum class State {
         NONE,
@@ -73,26 +74,6 @@ void setupWiFi()
     Serial.println("WiFi connected with local IP " + WiFi.localIP().toString());
 }
 
-void ensureMQTTConnection()
-{
-    while (!mqttClient.connected())
-    {
-        Serial.print("Attempting MQTT connection...");
-        if (mqttClient.connect("ESP32-Podnosnik"))
-        {
-            Serial.println("connected");
-            mqttClient.subscribe("podnosnik/command");
-        }
-        else
-        {
-            Serial.print("failed, rc=");
-            Serial.print(mqttClient.state());
-            Serial.println(" try again in 5 seconds");
-            delay(5000);
-        }
-    }
-}
-
 void setup()
 {
     // set up serial
@@ -103,8 +84,8 @@ void setup()
     setupWiFi();
 
     // set up MQTT client
-    mqttClient.setServer(MQTT_SERVER, 1883);
-    mqttClient.setCallback([] (char* topic, byte* payload, unsigned int length)  {  
+    mqttClient = new MQTTClient(MQTT_SERVER, 1883, wifiClient);
+    mqttClient->setMessageCallback([] (char* topic, byte* payload, unsigned int length)  {  
         Serial.println("MQTT message [" + String(topic) + "] " + String(payload, length));
         try
         {
@@ -174,7 +155,7 @@ void setup()
                 for (auto scale : scales)
                     str += String(scale->getWeight()) + " ";
                 
-                mqttClient.publish("podnosnik/waga", str.c_str());
+                mqttClient->publish("podnosnik/waga", str.c_str());
 
                 vTaskDelay(2000 / portTICK_PERIOD_MS);
             }
@@ -248,7 +229,7 @@ void demoServo()
         ; // wait
 
     distance *= -1.f;
-    
+
     state = State::NONE;
 }
 
@@ -296,8 +277,10 @@ static std::unordered_map<State, std::function<void()>> stateToFunction = {
 
 void loop()
 {
-    ensureMQTTConnection();
-    mqttClient.loop();
+    // ensureMQTTConnection();
+    // mqttClient.loop();
+    mqttClient->ensureConnection();
+    mqttClient->loop();
 
     if (Serial.available())
     {
