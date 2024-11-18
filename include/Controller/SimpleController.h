@@ -24,11 +24,11 @@ public:
 
     float update(float newValue) override
     {
-        if (newValue > _targetValue + _tolerance)
+        if (newValue > _targetValue + _tolerance/2.0f)
         {
             return -1.0f;
         }
-        else if (newValue < _targetValue - _tolerance)
+        else if (newValue < _targetValue - _tolerance/2.0f)
         {
             return 1.0f;
         }
