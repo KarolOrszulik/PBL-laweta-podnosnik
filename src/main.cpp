@@ -19,6 +19,8 @@
 #include "Servo/Servo.h"
 #include "StopSignal/StopSignal.h"
 
+#include <unordered_map>
+
 #define NUM_AXIS 4
 
 static Adafruit_MCP23X17 mcp;
@@ -34,19 +36,30 @@ static IServo* servos[NUM_AXIS] = {};
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 
-enum class State : char {
-        NONE = 'n',
-        ENCODERS = 'e',
-        SCALES = 's',
-        BMI160 = 'b',
-        SERVO = 'v',
-        HOME = 'h',
-        UP = 'u',
-        DOWN = 'd',
-        STOP = 'S',
+enum class State {
+        NONE,
+        ENCODERS,
+        SCALES,
+        BMI160,
+        SERVO,
+        HOME,
+        UP,
+        DOWN,
+        STOP,
+};
+State state = State::NONE;
+
+static std::unordered_map<char, State> charToState = {
+    {'e', State::ENCODERS},
+    {'w', State::SCALES},
+    {'b', State::BMI160},
+    {'s', State::SERVO},
+    {'h', State::HOME},
+    {'u', State::UP},
+    {'d', State::DOWN},
+    {'t', State::STOP},  
 };
 
-State state = State::NONE;
 
 void setupWiFi()
 {
@@ -60,7 +73,7 @@ void setupWiFi()
     Serial.println("WiFi connected with local IP " + WiFi.localIP().toString());
 }
 
-void reconnect()
+void ensureMQTTConnection()
 {
     while (!mqttClient.connected())
     {
@@ -80,48 +93,39 @@ void reconnect()
     }
 }
 
-void mqttCallback(char* topic, byte* payload, unsigned int length)
-{
-    Serial.print("Message arrived [");
-    Serial.print(topic);
-    Serial.print("] ");
-    for (int i = 0; i < length; i++)
-    {
-        Serial.print((char)payload[i]);
-    }
-    Serial.println();
-
-    if (length >= 1)
-    {
-        switch ((char)payload[0])
-        {
-            case 'h':
-                Serial.println("MQTT home command");
-                state = State::HOME;
-                break;
-            default:
-                state = State::NONE;
-                break;
-        }
-    }
-}
-
 void setup()
 {
+    // set up serial
     Serial.begin(115200);
     delay(1000);
 
+    // set up WiFi
     setupWiFi();
-    mqttClient.setServer(MQTT_SERVER, 1883);
-    mqttClient.setCallback(mqttCallback);
 
+    // set up MQTT client
+    mqttClient.setServer(MQTT_SERVER, 1883);
+    mqttClient.setCallback([] (char* topic, byte* payload, unsigned int length)  {  
+        Serial.println("MQTT message [" + String(topic) + "] " + String(payload, length));
+        try
+        {
+            state = charToState[payload[0]];
+        }
+        catch(const std::exception& e)
+        {
+            state = State::NONE;
+        }
+    });
+
+    // set up I2C
     Wire.begin(21, 22);
     Wire1.begin(12, 13);
 
+    // set up I2C devices - BMI160 and MCP23017
     bmi160.softReset() == BMI160_OK ? Serial.println("BMI160 reset success") : Serial.println("BMI160 reset failed");
     bmi160.I2cInit(0x69) == BMI160_OK ? Serial.println("BMI160 init success") : Serial.println("BMI160 init failed");
     mcp.begin_I2C(0x20, &Wire1) ? Serial.println("MCP23017 found") : Serial.println("MCP23017 not found");
 
+    // set up motors, encoders, scales and servos
     for (int i = 0; i < NUM_AXIS; i++)
     {
         motors[i] = new L9110S_Motor(new MCP23017_Pin(&mcp, MOTOR_PINS[i].pinA), new MCP23017_Pin(&mcp, MOTOR_PINS[i].pinB));
@@ -137,6 +141,7 @@ void setup()
         servos[i]->enableUpdates();
     }
 
+    // set up interrupts for encoders
     attachInterrupt(digitalPinToInterrupt(encoders[0]->getTriggerPin()), []
                     { encoders[0]->isr(); }, RISING);
     attachInterrupt(digitalPinToInterrupt(encoders[1]->getTriggerPin()), []
@@ -146,6 +151,7 @@ void setup()
     attachInterrupt(digitalPinToInterrupt(encoders[3]->getTriggerPin()), []
                     { encoders[3]->isr(); }, RISING);
 
+    // set up task to update servos
     xTaskCreatePinnedToCore(
         [] (void*)
         {
@@ -156,18 +162,34 @@ void setup()
                 vTaskDelay(20 / portTICK_PERIOD_MS);
             }
         },
-        "Servo updates",
-        10000,
-        NULL,
-        1,
-        NULL,
-        1);
+        "Servo updates", 10000, NULL, 1, NULL, 1);
+    
+    // set up task to report weights on scales
+    xTaskCreatePinnedToCore(
+        [] (void*)
+        {
+            while (true)
+            {
+                String str = "Weight on scales [g]: ";
+                for (auto scale : scales)
+                    str += String(scale->getWeight()) + " ";
+                
+                mqttClient.publish("podnosnik/waga", str.c_str());
 
+                vTaskDelay(2000 / portTICK_PERIOD_MS);
+            }
+        },
+        "Weight report MQTT", 10000, NULL, 1, NULL, 1);
 
+    // clear stop signal
     StopSignal::instance()->clearStop();
 
+    // print setup complete
     Serial.println("Setup complete");
 }
+
+
+#pragma region Demos
 
 void demoAllEncoders()
 {
@@ -226,60 +248,69 @@ void demoServo()
         ; // wait
 
     distance *= -1.f;
+    
+    state = State::NONE;
 }
 
 void demoHome()
 {
     servos[0]->home(true);
     servos[0]->setTargetPosition(1.f);
+    state = State::NONE;
 }
+
+void demoUp()
+{
+    servos[0]->moveTargetPosition(1.f);
+    state = State::NONE;
+
+}
+
+void demoDown()
+{
+    servos[0]->moveTargetPosition(-1.f);
+    state = State::NONE;
+}
+
+void demoStop()
+{
+    StopSignal::instance()->stop();
+    delay(1000);
+    StopSignal::instance()->clearStop();
+    state = State::NONE;
+}
+
+#pragma endregion
+
+
+static std::unordered_map<State, std::function<void()>> stateToFunction = {
+    {State::ENCODERS, demoAllEncoders},
+    {State::SCALES, demoAllScales},
+    {State::BMI160, demoBMI160},
+    {State::SERVO, demoServo},
+    {State::HOME, demoHome},
+    {State::UP, demoUp},
+    {State::DOWN, demoDown},
+    {State::STOP, demoStop},
+};
 
 void loop()
 {
-    if (!mqttClient.connected())
-        reconnect();
+    ensureMQTTConnection();
     mqttClient.loop();
 
     if (Serial.available())
     {
-        state = static_cast<decltype(state)>(Serial.read());
-        Serial.println("New value of state (int): " + String((int)state));
+        try
+        {
+            state = charToState[Serial.read()];
+        }
+        catch(const std::exception& e)
+        {
+            state = State::NONE;
+        }
     }
 
-    switch (state)
-    {
-    case State::NONE:
-        break;
-    case State::ENCODERS:
-        demoAllEncoders();
-        break;
-    case State::SCALES:
-        demoAllScales();
-        break;
-    case State::BMI160:
-        demoBMI160();
-        break;
-    case State::SERVO:
-        demoServo();
-        state = State::NONE;
-        break;
-    case State::HOME:
-        demoHome();
-        state = State::NONE;
-        break;
-    case State::UP:
-        servos[0]->moveTargetPosition(1.f);
-        state = State::NONE;
-        break;
-    case State::DOWN:
-        servos[0]->moveTargetPosition(-1.f);
-        state = State::NONE;
-        break;
-    case State::STOP:
-        StopSignal::instance()->stop();
-        delay(1000);
-        StopSignal::instance()->clearStop();
-        state = State::NONE;
-        break;
-    }
+    if (state != State::NONE)
+        stateToFunction[state]();
 }
