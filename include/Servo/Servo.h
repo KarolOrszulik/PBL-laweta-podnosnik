@@ -67,7 +67,7 @@ public:
 
     void home(bool homeDownward) override
     {
-        constexpr int MS_BETWEEN_UPDATES = 50;
+        constexpr int MS_BETWEEN_UPDATES = 10;
 
         disableUpdates();
 

@@ -2,9 +2,13 @@
 #include "pins.h"
 #include "constants.h"
 #include "HX711_calibration_values.h"
+#include "secret_wifi.h"
 
-#include "DFRobot_BMI160.h"
-#include "Adafruit_MCP23X17.h"
+#include <DFRobot_BMI160.h>
+#include <Adafruit_MCP23X17.h>
+
+#include <WiFi.h>
+#include <PubSubClient.h>
 
 #include "Motor/L9110S_Motor.h"
 #include "Encoder/Encoder.h"
@@ -25,10 +29,91 @@ static IMotor* motors[NUM_AXIS] = {};
 static IEncoder* encoders[NUM_AXIS] = {};
 static IServo* servos[NUM_AXIS] = {};
 
+#define MQTT_SERVER "192.168.100.6" // thinkpad
+
+WiFiClient wifiClient;
+PubSubClient mqttClient(wifiClient);
+
+enum class State : char {
+        NONE = 'n',
+        ENCODERS = 'e',
+        SCALES = 's',
+        BMI160 = 'b',
+        SERVO = 'v',
+        HOME = 'h',
+        UP = 'u',
+        DOWN = 'd',
+        STOP = 'S',
+};
+
+State state = State::NONE;
+
+void setupWiFi()
+{
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
+    Serial.print("Connecting to WiFi " + String(WIFI_SSID));
+    while (WiFi.status() != WL_CONNECTED)
+    {
+        Serial.print(".");
+        delay(500);
+    }
+    Serial.println("WiFi connected with local IP " + WiFi.localIP().toString());
+}
+
+void reconnect()
+{
+    while (!mqttClient.connected())
+    {
+        Serial.print("Attempting MQTT connection...");
+        if (mqttClient.connect("ESP32-Podnosnik"))
+        {
+            Serial.println("connected");
+            mqttClient.subscribe("podnosnik/command");
+        }
+        else
+        {
+            Serial.print("failed, rc=");
+            Serial.print(mqttClient.state());
+            Serial.println(" try again in 5 seconds");
+            delay(5000);
+        }
+    }
+}
+
+void mqttCallback(char* topic, byte* payload, unsigned int length)
+{
+    Serial.print("Message arrived [");
+    Serial.print(topic);
+    Serial.print("] ");
+    for (int i = 0; i < length; i++)
+    {
+        Serial.print((char)payload[i]);
+    }
+    Serial.println();
+
+    if (length >= 1)
+    {
+        switch ((char)payload[0])
+        {
+            case 'h':
+                Serial.println("MQTT home command");
+                state = State::HOME;
+                break;
+            default:
+                state = State::NONE;
+                break;
+        }
+    }
+}
+
 void setup()
 {
     Serial.begin(115200);
     delay(1000);
+
+    setupWiFi();
+    mqttClient.setServer(MQTT_SERVER, 1883);
+    mqttClient.setCallback(mqttCallback);
 
     Wire.begin(21, 22);
     Wire1.begin(12, 13);
@@ -68,7 +153,7 @@ void setup()
             {
                 for (auto servo : servos)
                     servo->update();
-                delay(10);
+                vTaskDelay(20 / portTICK_PERIOD_MS);
             }
         },
         "Servo updates",
@@ -97,6 +182,7 @@ void demoAllEncoders()
 
 void demoAllScales()
 {
+    Serial.print("Weights on scales [g]: ");
     for (auto scale : scales)
     {
         Serial.print(scale->getWeight());
@@ -150,64 +236,50 @@ void demoHome()
 
 void loop()
 {
-    static enum : char {
-        NONE = 'n',
-        ENCODERS = 'e',
-        SCALES = 's',
-        BMI160 = 'b',
-        SERVO = 'v',
-        HOME = 'h',
-        UP = 'u',
-        DOWN = 'd',
-        STOP = 'S',
-    } state;
+    if (!mqttClient.connected())
+        reconnect();
+    mqttClient.loop();
 
     if (Serial.available())
     {
-        try
-        {
-            state = (decltype(state))Serial.read();
-        }
-        catch (...)
-        {
-            state = NONE;
-        }
+        state = static_cast<decltype(state)>(Serial.read());
+        Serial.println("New value of state (int): " + String((int)state));
     }
 
     switch (state)
     {
-    case NONE:
+    case State::NONE:
         break;
-    case ENCODERS:
+    case State::ENCODERS:
         demoAllEncoders();
         break;
-    case SCALES:
+    case State::SCALES:
         demoAllScales();
         break;
-    case BMI160:
+    case State::BMI160:
         demoBMI160();
         break;
-    case SERVO:
+    case State::SERVO:
         demoServo();
-        state = NONE;
+        state = State::NONE;
         break;
-    case HOME:
+    case State::HOME:
         demoHome();
-        state = NONE;
+        state = State::NONE;
         break;
-    case UP:
+    case State::UP:
         servos[0]->moveTargetPosition(1.f);
-        state = NONE;
+        state = State::NONE;
         break;
-    case DOWN:
+    case State::DOWN:
         servos[0]->moveTargetPosition(-1.f);
-        state = NONE;
+        state = State::NONE;
         break;
-    case STOP:
+    case State::STOP:
         StopSignal::instance()->stop();
         delay(1000);
         StopSignal::instance()->clearStop();
-        state = NONE;
+        state = State::NONE;
         break;
     }
 }
