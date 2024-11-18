@@ -10,10 +10,10 @@
 class MQTTClient : public IMQTTClient
 {
 public:
-    MQTTClient(CString server, uint16_t port, WiFiClient& client)
-        : _client(client)
+    MQTTClient(String const& clientName, const char* serverIP, uint16_t port, WiFiClient& client)
+        : _clientName(clientName), _client(client)
     {
-        _client.setServer(server, port);
+        _client.setServer(serverIP, port);
     }
     
     void ensureConnection() override
@@ -21,17 +21,16 @@ public:
         while (!_client.connected())
         {
             Serial.print("Attempting MQTT connection...");
-            if (_client.connect("ESP32-Podnosnik"))
+            if (_client.connect(_clientName.c_str()))
             {
                 Serial.println("connected");
-                _client.subscribe("podnosnik/command");
+                _client.subscribe(_subscribedTopic.c_str());
             }
             else
             {
-                Serial.print("failed, rc=");
-                Serial.print(_client.state());
-                Serial.println(" try again in 5 seconds");
-                delay(5000);
+                constexpr int TIMEOUT_S = 3;
+                Serial.println("failed, rc=" + String(_client.state()) + ", trying again in " + String(TIMEOUT_S) + "s");
+                delay(TIMEOUT_S * 1000);
             }
         }
     }
@@ -41,12 +40,12 @@ public:
         _client.loop();
     }
 
-    void subscribe(CString topic) override
+    void setSubscribedTopic(const char* topic) override
     {
-        _client.subscribe(topic);
+        _subscribedTopic = String(topic);
     }
 
-    void publish(CString topic, CString payload) override
+    void publish(const char* topic, const char* payload) override
     {
         _client.publish(topic, payload);
     }
@@ -56,18 +55,9 @@ public:
         _client.setCallback(callback);
     }
 
-    void setDefaultCallback() override
-    {
-        setMessageCallback([](char* topic, uint8_t* payload, unsigned int length)
-        {
-            Serial.print("MQTT message [" + String(topic) + "] ");
-            for (int i = 0; i < length; i++)
-                Serial.print((char)payload[i]);
-            Serial.println();
-        });
-    }
-
 private:
     PubSubClient _client;
     MQTTCallback _callback;
+    String _clientName;
+    String _subscribedTopic;
 };

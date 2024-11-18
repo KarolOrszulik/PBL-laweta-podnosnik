@@ -7,9 +7,6 @@
 #include <DFRobot_BMI160.h>
 #include <Adafruit_MCP23X17.h>
 
-#include <WiFi.h>
-#include <PubSubClient.h>
-
 #include "Motor/L9110S_Motor.h"
 #include "Encoder/Encoder.h"
 #include "Pin/GPIO_Pin.h"
@@ -22,8 +19,6 @@
 
 #include <unordered_map>
 
-#define NUM_AXIS 4
-
 static Adafruit_MCP23X17 mcp;
 static DFRobot_BMI160 bmi160;
 
@@ -32,25 +27,23 @@ static IMotor* motors[NUM_AXIS] = {};
 static IEncoder* encoders[NUM_AXIS] = {};
 static IServo* servos[NUM_AXIS] = {};
 
-#define MQTT_SERVER "192.168.100.6" // thinkpad
-
-WiFiClient wifiClient;
-IMQTTClient* mqttClient = nullptr;
+static WiFiClient wifiClient;
+static IMQTTClient* mqttClient = nullptr;
 
 enum class State {
-        NONE,
-        ENCODERS,
-        SCALES,
-        BMI160,
-        SERVO,
-        HOME,
-        UP,
-        DOWN,
-        STOP,
+    NONE,
+    ENCODERS,
+    SCALES,
+    BMI160,
+    SERVO,
+    HOME,
+    UP,
+    DOWN,
+    STOP,
 };
-State state = State::NONE;
+static State state = State::NONE;
 
-static std::unordered_map<char, State> charToState = {
+static const std::unordered_map<char, State> charToState = {
     {'e', State::ENCODERS},
     {'w', State::SCALES},
     {'b', State::BMI160},
@@ -61,17 +54,17 @@ static std::unordered_map<char, State> charToState = {
     {'t', State::STOP},  
 };
 
-
-void setupWiFi()
+void setState(char c)
 {
-    WiFi.begin(WIFI_SSID, WIFI_PASS);
-    Serial.print("Connecting to WiFi " + String(WIFI_SSID));
-    while (WiFi.status() != WL_CONNECTED)
+    try
     {
-        Serial.print(".");
-        delay(500);
+        state = charToState.at(c);
     }
-    Serial.println("WiFi connected with local IP " + WiFi.localIP().toString());
+    catch(const std::exception& e)
+    {
+        Serial.println("Invalid command, setting state to NONE");
+        state = State::NONE;
+    }
 }
 
 void setup()
@@ -81,20 +74,21 @@ void setup()
     delay(1000);
 
     // set up WiFi
-    setupWiFi();
+    Serial.print("Connecting to WiFi " + String(WIFI_SSID));
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
+    while (WiFi.status() != WL_CONNECTED)
+    {
+        Serial.print(".");
+        delay(500);
+    }
+    Serial.println("WiFi connected with local IP " + WiFi.localIP().toString());
 
     // set up MQTT client
-    mqttClient = new MQTTClient(MQTT_SERVER, 1883, wifiClient);
+    mqttClient = new MQTTClient("ESP32-podnosnik", MQTT_SERVER, 1883, wifiClient);
+    mqttClient->setSubscribedTopic("podnosnik/command");
     mqttClient->setMessageCallback([] (char* topic, byte* payload, unsigned int length)  {  
         Serial.println("MQTT message [" + String(topic) + "] " + String(payload, length));
-        try
-        {
-            state = charToState[payload[0]];
-        }
-        catch(const std::exception& e)
-        {
-            state = State::NONE;
-        }
+        if (length > 0) setState((char)payload[0]);
     });
 
     // set up I2C
@@ -170,7 +164,7 @@ void setup()
 }
 
 
-#pragma region Demos
+#pragma region Demos // radzę nie otwierać
 
 void demoAllEncoders()
 {
@@ -277,23 +271,15 @@ static std::unordered_map<State, std::function<void()>> stateToFunction = {
 
 void loop()
 {
-    // ensureMQTTConnection();
-    // mqttClient.loop();
+    // handle MQTT commands
     mqttClient->ensureConnection();
     mqttClient->loop();
 
+    // handle Serial commands
     if (Serial.available())
-    {
-        try
-        {
-            state = charToState[Serial.read()];
-        }
-        catch(const std::exception& e)
-        {
-            state = State::NONE;
-        }
-    }
+        setState(Serial.read());
 
+    // execute command
     if (state != State::NONE)
         stateToFunction[state]();
 }
