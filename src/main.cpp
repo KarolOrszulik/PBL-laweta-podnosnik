@@ -111,7 +111,7 @@ void setup()
         scales[i]->setScale(HX711_CALIBRATION_VALUES[i].scale);
 
         servos[i] = new Servo(motors[i], encoders[i], new SimpleController(0.1f));
-        servos[i]->setPulsesPerMM(MOTOR_CPR / THREAD_PITCH);
+        servos[i]->setPulsesPerMM(MOTOR_PULSES_PER_MM);
         servos[i]->setPositionLimits(0.f, 50.f);
         servos[i]->enableUpdates();
     }
