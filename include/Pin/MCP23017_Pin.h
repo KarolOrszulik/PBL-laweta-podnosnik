@@ -22,6 +22,14 @@ public:
         _mcp->digitalWrite(_pin, state);
     }
 
+    void setPWM(int value) override
+    {
+        if (value == 0)
+            setState(LOW);
+        else
+            setState(HIGH);
+    }
+
     int getState() const override
     {
         return _mcp->digitalRead(_pin);

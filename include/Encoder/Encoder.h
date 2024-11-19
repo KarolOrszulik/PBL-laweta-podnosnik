@@ -2,12 +2,12 @@
 
 #include "Encoder/IEncoder.h"
 
-#include "Pin/GPIO_Pin.h"
+#include "Pin/IInterruptablePin.h"
 
 class Encoder : public IEncoder
 {
 public:
-    Encoder(GPIO_Pin* pinA, GPIO_Pin* pinB)
+    Encoder(IInterruptablePin* pinA, IInterruptablePin* pinB)
         : _pinTrig(pinA), _pinDir(pinB)
     {
         _pinTrig->setDirection(INPUT);
